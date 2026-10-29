@@ -1,0 +1,1250 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Strokes till release — app v0.50</title>
+<style>
+:root{color-scheme:dark;--bg:#101218;--p:#1b202c;--p2:#252c3b;--line:#3b4356;--t:#f4f5fb;--m:#aab2c5;--a:#b9a3ff;--g:#8dd9b4}*{box-sizing:border-box}body{margin:0;background:linear-gradient(150deg,#171b28,#0e1016);color:var(--t);font:16px/1.45 system-ui,sans-serif}header,main,footer{max-width:1000px;margin:auto;padding:18px}h1{margin:0;font-size:clamp(1.5rem,4vw,2.2rem)}h2{font-size:1.12rem;margin:0 0 12px}.muted{color:var(--m)}.small{font-size:.88rem}main{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:14px;padding-top:0}.card{grid-column:span 12;background:var(--p);border:1px solid var(--line);border-radius:16px;padding:16px;min-width:0}@media(min-width:760px){.half{grid-column:span 6}}button,input,select,textarea{font:inherit}button{min-height:44px;border:1px solid #514b6b;border-radius:10px;background:var(--p2);color:var(--t);padding:10px 13px;cursor:pointer}button.primary{background:var(--a);color:#171322;font-weight:700}button.danger{border-color:#92505a}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}label{display:block;font-size:.9rem;color:var(--m);margin-bottom:5px}input,select,textarea{width:100%;background:#11151e;color:var(--t);border:1px solid var(--line);border-radius:9px;padding:10px}.big{font-size:clamp(2rem,7vw,3.6rem);font-weight:800;line-height:1.15;letter-spacing:-.04em}.box{background:#141923;border:1px solid var(--line);border-radius:12px;padding:13px;margin-top:10px}.notice{background:#2a2417;border:1px solid #62502c;border-radius:10px;padding:12px;color:#f5dfad;font-size:.9rem}.pill{display:inline-block;border:1px solid var(--line);border-radius:30px;padding:4px 8px;font-size:.82rem;color:var(--m)}.progress{height:8px;background:#303647;border-radius:20px;overflow:hidden;margin-top:8px}.progress span{display:block;height:100%;background:var(--a);width:0}.row{padding:10px 0;border-bottom:1px solid var(--line)}.row:last-child{border:0}.hidden{display:none!important}
+
+
+.big{font-size:clamp(1.6rem,5vw,2.5rem);font-weight:800;margin-top:4px}
+.progress{height:12px;border-radius:999px;background:#222a38;overflow:hidden;margin:14px 0}
+.progress>div{height:100%;background:#8aa2ff;width:0}
+.result{margin-top:14px;padding:14px;border:1px solid #343d50;border-radius:14px}
+.log{padding:10px 0;border-bottom:1px solid #303747}
+button:disabled{opacity:.45;cursor:not-allowed}
+
+.sourcePosition{margin-top:14px}
+.sourcePosition img{display:block;max-width:100%;max-height:430px;margin:10px auto;border-radius:12px}
+.sourcePosition .accessories{padding:10px;border:1px solid #343d50;border-radius:10px;margin-top:8px}
+
+/* v0.50: authenticated app wrapper keeps the original card layout */
+#privateApp {
+  width: 100%;
+  grid-column: 1 / -1;
+}
+#privateApp.app-visible {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+#privateApp.app-visible > .card,
+#privateApp.app-visible > section {
+  min-width: 0;
+}
+@media (max-width: 760px) {
+  #privateApp.app-visible { grid-template-columns: 1fr; }
+}
+
+</style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head><body>
+<main>
+<header>
+  <div>
+    <h1>Strokes till release</h1>
+    <p class="muted">Decision tree • local cache + private cloud sync</p>
+    <button id="resetAllBtn" class="small" style="display:none;min-height:30px;padding:4px 8px;opacity:.55">Reset roulette</button>
+  </div>
+</header>
+
+<section class="card" id="cloudCard">
+  <h2>Cloud sync</h2>
+  <div id="loggedOutBox">
+    <p class="muted">Sign in with the app account you created in Supabase. Your session is remembered on this device.</p>
+    <div class="grid2">
+      <div><label for="loginEmail">Email</label><input id="loginEmail" type="email" autocomplete="username"></div>
+      <div><label for="loginPassword">Password</label><input id="loginPassword" type="password" autocomplete="current-password"></div>
+    </div>
+    <div class="actions"><button class="primary" id="loginBtn">Sign in</button></div>
+    <p class="muted small" id="loginMessage"></p>
+  </div>
+  <div id="loggedInBox" style="display:none">
+    <p><span class="pill" id="syncStatus">Loading…</span> <span class="muted small" id="accountLabel"></span></p>
+    <p class="muted small">Progress is synchronized with your private Supabase row. A local copy remains available as a cache.</p>
+    <div class="actions"><button id="syncNowBtn">Sync now</button><button id="logoutBtn">Sign out</button></div>
+  </div>
+</section>
+<div id="privateApp" style="display:none">
+
+
+<section class="card" id="dailyRequirementCard">
+  <h2>Daily task requirement</h2>
+  <div id="dailyRequirementStatus" class="notice">Loading daily requirement…</div>
+  <div id="dailyRequirementConsequence" style="display:none" class="result">
+    <strong>Missed-day consequence</strong>
+    <p id="dailyRequirementText"></p>
+    <div><strong>Step 1 — Cane strokes to ass</strong><br>
+      <span id="dailyStep1Amount">Amount: 50</span>
+    </div>
+    <div id="dailyStep2" style="margin-top:12px">
+      <strong>Step 2 — Attention position</strong>
+      <p>Stand in the corner in attention position with ball gag, collar, nipple clamps with chain wearing high heels and a sexy outfit.</p>
+    <div style="margin:10px 0"><img src="images/image27.jpg" alt="Attention position reference" style="max-width:280px;width:100%;border-radius:12px"></div>
+    <div class="timer" id="dailyRequirementTimer">00:00</div>
+    <div class="actions">
+      <button id="dailyRequirementStart">Start / resume reset timer</button>
+      
+    </div>
+    <p class="muted">Safety stop remains available and never adds a penalty.</p>
+  </div>
+</section>
+
+<section class="card">
+  <h2>How it works</h2>
+  <p>Start with one random five-digit stroke target. That is the total you need to work through before release is permitted. Instead of simply counting down, progress is earned through randomly selected tasks. Each round chooses a main category, then a task and its relevant parameters. Complete the task to continue and, when the selected task is a Stroke task, add those completed strokes toward the overall goal.</p>
+  <p class="muted">The six main task categories are:</p>
+  <ul>
+    <li><strong>Stroke</strong> — stroke challenges with a randomly selected amount and tempo.</li>
+    <li><strong>Anal</strong> — randomly selected anal tasks with their own size, time or tempo parameters.</li>
+    <li><strong>Service</strong> — service tasks such as Waiter, Masseur and Human Furniture.</li>
+    <li><strong>Clean</strong> — one cleaning method combined with a randomly selected room.</li>
+    <li><strong>Torture</strong> — Cock/Ball, Ass or Nipple subcategories with independently randomized parameters.</li>
+    <li><strong>Position</strong> — cage, slave-position or bondage tasks with the relevant position, accessories and time.</li>
+  </ul>
+  <div class="notice" style="margin-top:12px">
+  <strong>Release rule</strong>
+  <p style="margin-bottom:6px">Release is not permitted while working toward the target, including during a Stroke task. If you get too close, pause the Stroke task before going any further. Pausing is allowed, but it triggers the app’s pause consequence before progress can continue.</p>
+  <p style="margin-bottom:0">If release happens anyway, it must be treated as a ruined result in the app. The ruined-result consequence then applies and the stroke target is recalculated according to the rules.</p>
+</div>
+<p class="muted">Your current target, progress, task results and ongoing consequences are cached locally and, when signed in, synchronized to your private cloud state.</p>
+</section>
+
+
+<section class="card">
+  <h2>Stroke counter</h2>
+  <div class="grid2">
+    <div><span class="muted">Start strokes</span><div class="big" id="startGoal">—</div></div>
+    <div><span class="muted">Stroke counter</span><div class="big" id="remaining">—</div></div>
+  </div>
+  <div class="progress"><div id="overallProgress"></div></div>
+  <p class="muted" id="goalInfo">Set the stroke target once between 10,000 and 99,999.</p>
+  <div class="actions"><button class="primary" id="goalBtn">Set starting amount</button></div>
+</section>
+
+<section class="card">
+  <h2>Tasks</h2>
+  <p class="muted">After the fixed stroke target is set, each round first selects one of the six main categories and then its subcategory and parameters.</p>
+  <div class="grid2">
+    <div><span class="muted">Main category</span><div class="big" id="catOut">—</div></div>
+    <div><span class="muted">Status</span><div class="big" id="statusOut">Ready</div></div>
+  </div>
+  <div class="actions"><button class="primary" id="taskBtn">Choose random category + task</button></div>
+  <div id="taskBox" class="result" style="display:none"></div>
+  <div id="cageTimeBox" class="result" style="display:none">
+    <label for="cageMinutes">Time for In the cage (minutes)</label>
+    <input id="cageMinutes" type="number" min="1" max="240" value="15">
+    <div class="actions"><button class="primary" id="setCageTime">Set timer</button></div>
+  </div>
+</section>
+
+<section class="card" id="runCard" style="display:none">
+  <h2>Task execution</h2>
+  <div class="grid2">
+    <div><span class="muted">Timer</span><div class="big" id="timer">00:00</div></div>
+    <div><span class="muted">Completed strokes</span><div class="big" id="strokeDone">0</div></div>
+  </div>
+  <div id="bpmBox" style="display:none">
+    <label>BPM counter</label>
+    <div class="big" id="bpmTarget">—</div>
+    <p class="muted">The counter automatically follows the selected tempo. Pausing stops both the tempo and counter.</p>
+  </div>
+  <div class="actions">
+    <button class="primary" id="startBtn">Start</button>
+  </div>
+  <div class="actions">
+    <button class="primary" id="successBtn" disabled>Completed successfully</button>
+    <button id="pauseBtn">Pause</button>
+    <button id="ruinedBtn" style="display:none">Ruined orgasm</button>
+    <button id="failBtn">Task failed</button>
+    <button id="stopBtn">Safety stop</button>
+  </div>
+  <div id="pauseNotice" class="result" style="display:none"></div>
+  <div id="penaltyBox" class="result" style="display:none"></div>
+</section>
+
+<section class="card" id="ongoingConsequences" style="display:none">
+<h2>Ongoing consequences</h2><div id="ongoingConsequencesList"></div>
+</section>
+<section class="card" id="consequenceCard" style="display:none">
+  <h2>Consequence</h2>
+  <div id="consequenceText" class="result"></div>
+  <div id="consequenceTimerBox" style="display:none">
+    <span class="muted">Consequence time remaining</span>
+    <div class="big" id="consequenceTimer">00:00</div>
+    <div class="actions"><button class="primary" id="startConsequence">Start consequence</button></div>
+  </div>
+  <div id="cleaningCounterBox" style="display:none">
+    <span class="muted">Complete before the cleaning task can resume</span>
+    <div class="big" id="cleaningCounter">0 / 200</div>
+    <p class="muted">100 hard spanks per buttock.</p>
+    <div class="actions"><button id="cleanMinus">−1</button><button id="cleanPlus">+1</button><button id="cleanPlus10">+10</button><button id="cleanPlus100">+100</button></div>
+  </div>
+  <div id="ruinedCounterBox" style="display:none">
+    <span class="muted">Spanks to complete after ruined orgasm</span>
+    <div class="big" id="ruinedCounter">0 / 0</div>
+    <div class="actions"><button id="ruinedMinus">−1</button><button id="ruinedPlus">+1</button><button id="ruinedPlus10">+10</button><button id="ruinedPlus100">+100</button></div>
+  </div>
+  <div id="strokePenaltyCounterBox" style="display:none">
+    <span class="muted">Workout distribution</span>
+    <div class="big" id="penaltyCounter">0 / 0 points</div>
+    <p class="muted">Sit-ups, push-ups, squats and lunges count 1-to-1. Only jumping jacks use 5 repetitions = 1 point.</p>
+    <div id="workoutCounters"></div>
+  </div>
+  <div class="actions"><button class="primary" id="finishConsequence" disabled>Consequence completed</button></div>
+</section>
+
+
+<section class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <h2 style="margin:0">Session log</h2><button id="clearLog">Clear log</button>
+  </div>
+  <div id="logs" style="margin-top:8px"><p class="muted">No results yet.</p></div>
+</section>
+<div id="tree" style="display:none"></div>
+
+</div>
+</main>
+<footer class="small">v0.50 • authenticated private cloud sync.</footer>
+<script>
+const $=id=>document.getElementById(id);
+
+const DEVICE_TIME_ZONE=(()=>{try{return Intl.DateTimeFormat().resolvedOptions().timeZone||"Europe/Amsterdam"}catch(e){return "Europe/Amsterdam"}})();
+let serverClockOffsetMs=null, serverClockSyncedAt=0;
+function trustedNow(){
+  // Before authentication the private app is hidden, so allow harmless UI setup
+  // to use the device clock. Time-sensitive authenticated state is never loaded
+  // until syncTrustedClock() succeeds in cloudLoad().
+  return serverClockOffsetMs===null ? Date.now() : Date.now()+serverClockOffsetMs;
+}
+function trustedDate(){return new Date(trustedNow())}
+function formatTrusted(ms,zone=DEVICE_TIME_ZONE){
+  return new Intl.DateTimeFormat("en-GB",{timeZone:zone,dateStyle:"medium",timeStyle:"medium"}).format(new Date(ms));
+}
+function zonedParts(ms,zone=DEVICE_TIME_ZONE){
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(ms));
+  const o={}; for(const x of parts) if(x.type!=="literal") o[x.type]=Number(x.value);
+  return o;
+}
+function zonedDateTimeToEpoch(y,m,d,hh,mm,ss,zone){
+  let guess=Date.UTC(y,m-1,d,hh,mm,ss);
+  for(let i=0;i<4;i++){
+    const p=zonedParts(guess,zone);
+    const represented=Date.UTC(p.year,p.month-1,p.day,p.hour,p.minute,p.second);
+    const target=Date.UTC(y,m-1,d,hh,mm,ss);
+    guess += target-represented;
+  }
+  return guess;
+}
+function nextLocalDayAt7(ms,zone=DEVICE_TIME_ZONE){
+  const p=zonedParts(ms,zone);
+  const next=new Date(Date.UTC(p.year,p.month-1,p.day)+86400000);
+  return zonedDateTimeToEpoch(next.getUTCFullYear(),next.getUTCMonth()+1,next.getUTCDate(),7,0,0,zone);
+}
+async function syncTrustedClock(){
+  const before=Date.now();
+  const {data,error}=await cloud.rpc("server_now");
+  const after=Date.now();
+  if(error) throw new Error("Server clock unavailable. Install the server_now RPC in Supabase.");
+  const raw=Array.isArray(data)?data[0]:data;
+  const serverMs=Date.parse(raw);
+  if(!Number.isFinite(serverMs)) throw new Error("Invalid server time returned by Supabase.");
+  serverClockOffsetMs=serverMs-((before+after)/2);
+  serverClockSyncedAt=after;
+  return serverMs;
+}
+
+const rnd=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+const pick=a=>a[rnd(0,a.length-1)];
+
+const strokeAmounts=[100,200,400,600,800,1000];
+const strokeBpms=[20,30,60,90,120,180];
+const anal={
+ "Buttplug":[["Small",30*60],["Medium",60*60],["Large",90*60],["Beads/balls",120*60],["Vibrating tail",150*60],["Inflatable",180*60]],
+ "Dildo sitting":[["Small",20*60],["Medium",40*60],["Large",60*60],["Snake",80*60]],
+ "Fuck":[["Small",10*60,30],["Medium",20*60,60],["Large",30*60,90]]
+};
+const furniture=[
+ ["Foot rest",5*60,"sit on knees and elbows, add metal plug and ball gag"],
+ ["Coffee table",10*60,"legs over head, put small table on ass and secure with strap-on dildo in asshole, include ball gag"],
+ ["Coat rack",15*60,"stand on high heels wearing nipple clamps with a chain and a dildo gag, hang a light coat on the chain, arms apart with in both hands a coat, legs together holding an umbrella between legs and buttocks, and hanging a hat on the dildo gag"],
+ ["Candle holder",20*60,"ass up, head down, put a dinner candle in your asshole and put it on, drip wax on ass and feet"],
+ ["Toilet paper holder",25*60,"kneel in front of the toilet with legs apart arms behind back, wearing nipple clamps with chain hanging a toilet paper roll on to the chain and a dildo gag using the dildo as a hand towel hanger"],
+ ["Doorbell",30*60,"standing tied to the sliding door, wearing a blindfold, ring gag, nipple clamps with bells and weights hanging on the balls to be used as doorknocker"]
+];
+const cleanTasks=["Dust all vertical surfaces","Vacuum clean","Mop the floor","Clean bathroom/toilet","Organize/clean"];
+const rooms=["Livingroom","Kitchen and utility room","Toilet and entree","Bedroom and spare bedroom","Bathroom","Office/game room","Hall/corridor and stairs"];
+const cageData=[{"name": "Standing", "img": "images/image16.png"}, {"name": "Sitting spread eagle", "img": "images/image26.png"}, {"name": "Laying on the back", "img": "images/image21.png"}, {"name": "On all fours", "img": "images/image9.png"}, {"name": "Like a baby", "img": "images/image19.png"}, {"name": "Sitting hands behind the back", "img": "images/image10.png"}, {"name": "Spit roast", "img": "images/image20.png"}, {"name": "Bend over cage", "img": "images/image24.png"}, {"name": "Small cage", "img": "images/image23.png"}, {"name": "Free in cage", "img": "images/image18.png"}, {"name": "Hogtie", "img": "images/image15.png"}, {"name": "Upside down", "img": "images/image6.png"}, {"name": "Kneeling", "img": "images/image25.png"}];
+const positionData=[{"name": "Inspection", "accessories": "chastity, collar, nipple clamps with chain, small buttplug and a ring gag", "img": "images/image11.jpg"}, {"name": "Wait", "accessories": "chastity, hands cuffed behind back and legs cuffed to a spreaderbar", "img": "images/image8.jpg"}, {"name": "Attention", "accessories": "chastity, collar, legs cuffed together and nipple clamps with chain", "img": "images/image27.jpg"}, {"name": "Wall", "accessories": "chastity, inflatable buttplug with 10 pumps, ball gag and nipple clamps with chain", "img": "images/image7.jpg"}, {"name": "At your service", "accessories": "chastity, collar, legs cuffed together and a small buttplug", "img": "images/image5.jpg"}, {"name": "Nadu", "accessories": "chastity, ball gag and nipple clamps with chain", "img": "images/image12.jpg"}, {"name": "Collar me", "accessories": "chastity, collar and nipple clamps with chain", "img": "images/image4.jpg"}, {"name": "Modest kneel", "accessories": "chastity, small buttplug and ball gag", "img": "images/image1.jpg"}, {"name": "Kneel / Tower slave position", "accessories": "chastity, small buttplug, ring gag and nipple clamps with chain", "img": "images/image22.jpg"}, {"name": "Humble", "accessories": "chastity, inflatable buttplug with 10 pumps and nipple clamps with chain", "img": "images/image13.jpg"}, {"name": "Table / She-sleen position", "accessories": "chastity, ball gag, nipple clamps with chain and a small buttplug", "img": "images/image2.jpg"}, {"name": "Stool / Obeisance position", "accessories": "chastity, collar and small buttplug", "img": "images/image14.jpg"}, {"name": "Sex Doll / Capture position", "accessories": "chastity, ring gag, nipple clamps with chain and inflatable buttplug with 10 pumps", "img": "images/image17.jpg"}, {"name": "Floor", "accessories": "chastity, small buttplug and legs cuffed together", "img": "images/image3.jpg"}];
+const posTimes=[15*60,20*60,25*60,30*60,35*60,40*60,45*60];
+const bed=["Spread eagle","Face down, ass up, spread eagle","Hands and legs to spreader bar","Hogtied","Frogtied, arms behind back","Legs together, arms along the body"];
+
+
+const cleaningTypes=[
+ {sub:"Dust all vertical surfaces", instruction:"Wearing a maids outfit with high heels, attached the duster to a dildo gag, clean with the gag in your mouth."},
+ {sub:"Vacuum clean", instruction:"Wearing a maids outfit with high heels and a ball gag, tie the vacuum cleaner to your balls so you pull it forward with your balls."},
+ {sub:"Mop the floor", instruction:"Wearing a maids outfit with a ring gag, cleaning the floor on hands and knees with wet cloth."},
+ {sub:"Scrub/wipe down", instruction:"Wearing a maids outfit with high heels and a ring gag, scrub or wipe down all surfaces that can handle wet cloth."},
+ {sub:"Organize/clean", instruction:"Wearing a maids outfit with high heels and a ball gag, clean all mess from ground and surfaces and organize the closets."}
+];
+const cleaningRooms=["Livingroom","Kitchen and utility room","Toilet and entree","Bedroom and spare bedroom","Bathroom","Office/game room","Hall/corridor and stairs"];
+function cleaningTask(){
+ const c=pick(cleaningTypes), room=pick(cleaningRooms);
+ return {cat:"Clean",sub:c.sub,detail:`Room: ${room}<br><br>${c.instruction}`,duration:null};
+}
+
+const cockBallTorture={
+ "Ball stretching/crushing":{
+   types:[
+     "Ball crusher (rotate once in a while to keep feeling the pressure; at the end the plates should be parallel or tighter)",
+     "Weights tied to the balls (no sitting allowed)",
+     "Rubber ball sack",
+     "Metal stretcher with ball splitter",
+     "Metal stretcher with ball splitter, including screws inserted",
+     "Heavy Metal stretcher"
+   ],
+   times:[10,20,30,40,50,60]
+ },
+ "Wax":{info:"Drip wax on cock and balls. After applying all drops, hit the wax off with a flogger.",drops:[5,10,15,20,25,30]},
+ "Clothespins":{info:"Use the selected number of clothespins for the selected time.",amounts:[2,5,8,10,12,15],times:[5,10,15,20,25,30]},
+ "E-Stim":{info:"Apply stimpads to your ball sack and bands around the cock. Start at 4 and go up to minimal 7. keep on 7 for at least 5 minutes.",
+   settings:["N - 50 μs - 10 Hz","N - 50 μs - 130 Hz","N - 220 μs - 10 Hz","N - 220 μs - 130 Hz","N - 50 μs - 75 Hz","N - 220 μs - 75 Hz"],
+   times:[10,20,30,40,50,60]
+ },
+ "Sounding":{info:"Use a sounding rod inside your cock.",times:[5,10,15,20,25,30]},
+ "Ball slapping":{info:"All slaps should be hard.",implements:["Hand","Paddle","Flogger","Crop"],amounts:[15,30,45,60]}
+};
+function cockBallTask(){
+ const sub=pick(Object.keys(cockBallTorture)), d=cockBallTorture[sub];
+ let parts=[];
+ if(d.info) parts.push(`<strong>Additional info:</strong> ${d.info}`);
+ if(d.types) parts.push(`Type: ${pick(d.types)}`);
+ if(d.drops) parts.push(`Drops: ${pick(d.drops)}`);
+ if(d.amounts) parts.push(`Amount: ${pick(d.amounts)}`);
+ if(d.settings) parts.push(`Setting: ${pick(d.settings)}`);
+ if(d.implements) parts.push(`Implement: ${pick(d.implements)}`);
+ if(d.times) parts.push(`Time: ${pick(d.times)} minutes`);
+ const selectedMinutes = d.times ? Number((parts.find(x=>x.startsWith("Time:"))||"").match(/\d+/)?.[0]||0) : 0;
+ return {
+   cat:"Torture", sub:`Cock/ball → ${sub}`,
+   detail:parts.join(" • "),
+   duration:selectedMinutes ? selectedMinutes*60 : null,
+   tortureReferenceOnly:true
+ };
+}
+
+
+const assTorture={
+ "Ass slapping":{info:"All slaps should be hard.",implements:["Hand","Paddle","Flogger","Crop","Cane"],amounts:[20,40,60,80,100]},
+ "Wax":{info:"Drip wax on buttocks. After applying all drops, hit the wax off with a flogger.",drops:[5,10,15,20,25,30]},
+ "E-Stim":{info:"Apply 2 stimpads to both of your buttockses. Start at 4 and go up to minimal 7. keep on 7 for at least 5 minutes.",
+   settings:["N - 50 μs - 10 Hz","N - 50 μs - 130 Hz","N - 220 μs - 10 Hz","N - 220 μs - 130 Hz","N - 50 μs - 75 Hz","N - 220 μs - 75 Hz"],
+   times:[10,20,30,40,50,60]
+ },
+ "Elastic band":{info:"Place a rubber band over your buttocks, pull on the side nearest to the skin, when the elastic bind is tensioned, let go of it.",amounts:[1,2,5,8,10,12]}
+};
+function assTortureTask(){
+ const sub=pick(Object.keys(assTorture)), d=assTorture[sub], parts=[]; if(d.info) parts.push(`<strong>Additional info:</strong> ${d.info}`);
+ if(d.implements) parts.push(`Implement: ${pick(d.implements)}`);
+ if(d.amounts) parts.push(`Amount per buttock: ${pick(d.amounts)}`);
+ if(d.drops) parts.push(`Drops per buttock: ${pick(d.drops)}`);
+ if(d.settings) parts.push(`Setting: ${pick(d.settings)}`);
+ let mins=d.times ? pick(d.times) : 0;
+ if(mins) parts.push(`Time: ${mins} minutes`);
+ return {cat:"Torture",sub:`Ass → ${sub}`,detail:parts.join(" • "),duration:mins?mins*60:null,tortureReferenceOnly:true};
+}
+const nippleTorture={
+ "Clamps":{info:"Use the selected clamp type for the selected time.",
+   types:["Clamps with bells","Clamps with chain","Clamps with chain, add weight every 10 minutes, start with 1.","Paper clamps","Clothespin","2 Clothespins per nipple"],
+   times:[10,20,30,40,50,60]
+ },
+ "Wax":{info:"Drip wax on nipples. After applying all drops, hit the wax off with a flogger.",drops:[4,8,12,16,20,25]},
+ "E-Stim":{info:"Apply a stimpads to both of your nipples. Start at 4 and go up to minimal 7. keep on 7 for at least 5 minutes.",
+   settings:["N - 50 μs - 10 Hz","N - 50 μs - 130 Hz","N - 220 μs - 10 Hz","N - 220 μs - 130 Hz","N - 50 μs - 75 Hz","N - 220 μs - 75 Hz"],
+   times:[10,20,30,40,50,60]
+ },
+ "Elastic band":{info:"Place a rubber band over your nipples, pull on the side nearest to the skin, when the elastic bind is tensioned, let go of it.",amounts:[1,2,5,8,10,12]}
+};
+function nippleTortureTask(){
+ const sub=pick(Object.keys(nippleTorture)), d=nippleTorture[sub], parts=[]; if(d.info) parts.push(`<strong>Additional info:</strong> ${d.info}`);
+ if(d.types) parts.push(`Type: ${pick(d.types)}`);
+ if(d.amounts) parts.push(`Amount per nipple: ${pick(d.amounts)}`);
+ if(d.drops) parts.push(`Drops per nipple: ${pick(d.drops)}`);
+ if(d.settings) parts.push(`Setting: ${pick(d.settings)}`);
+ let mins=d.times ? pick(d.times) : 0;
+ if(mins) parts.push(`Time: ${mins} minutes`);
+ return {cat:"Torture",sub:`Nipples → ${sub}`,detail:parts.join(" • "),duration:mins?mins*60:null,tortureReferenceOnly:true};
+}
+
+const categories=["Stroke","Anal","Service","Clean","Torture","Position"];
+
+const consequences={
+ Stroke:"If a Stroke task is paused, the strokes remaining at that moment are used for the adjusted consequence from the source document and converted into a workout (5 strokes = 1 exercise point). For multiple pauses, each remaining amount is tracked using the source document’s increasing multiplier.",
+ Anal:"Sleep with a medium buttplug tonight",
+ Service:"Serve the mistress for one week: prepare dinner every day, set and clear the table, load the dishwasher, and wipe the counter and table. During the week the mistress may request a massage or other stimulation at any time.",
+ Clean:"According to the source document: first 100 hard hits per buttock, then reclean the rejected areas and complete the described personal grooming/cleaning.",
+ Torture:"A two-hour pet-slave role. The slave should be on all fours wearing a collar and a tailed buttplug. The pet slave will have a blanket to lay on and drink and eat from a bowl on the ground. The slave is not allowed to talk unless specifically told to do so. If the slave breaks this role a gag should be applied for the remaining time.",
+ Position:"Wear high heels, a sexy outfit and a ball gag. Hands cuffed behind the back. Sitting, lying down and using furniture is prohibited for 1 hour."
+};
+
+let goal=JSON.parse(localStorage.getItem("strGoal")||"null");
+let initialGoal=JSON.parse(localStorage.getItem("strInitialGoal")||"null");
+let remaining=JSON.parse(localStorage.getItem("strRemaining")||"null");
+if(goal && !initialGoal){initialGoal=goal;localStorage.setItem("strInitialGoal",JSON.stringify(initialGoal));}
+let current=null, active=false, running=false;
+let taskEndAt=null, consequenceEndAt=null;
+let secondsLeft=0, timerTick=null, beatTick=null, counted=0;
+let pauseRemainders=[];
+let failed=false, consequence=null, consequenceLeft=0, consequenceTick=null, penaltyCount=0;
+let workoutCounts={situps:0,pushups:0,squats:0,lunges:0,jumpingjacks:0};
+let ruinedCount=0;
+let cleaningSpanks=0, cleaningResumeRequired=false, cleaningAftercareRequired=false;
+let deferredAnal=JSON.parse(localStorage.getItem("strDeferredAnal")||"null");
+let serviceUntil=JSON.parse(localStorage.getItem("strServiceUntil")||"null");
+let persistedBlocking=JSON.parse(localStorage.getItem("strBlockingConsequence")||"null");
+
+function fmt(sec){
+ sec=Math.max(0,Math.ceil(sec));
+ return String(Math.floor(sec/60)).padStart(2,"0")+":"+String(sec%60).padStart(2,"0");
+}
+function labelTime(sec){
+ if(!sec)return "";
+ if(sec%3600===0)return `${sec/3600} ${sec===3600?"hour":"hours"}`;
+ if(sec>=3600)return `${Math.floor(sec/3600)} hours ${Math.round((sec%3600)/60)} min`;
+ return `${sec/60} minutes`;
+}
+function saveGoal(){localStorage.setItem("strGoal",JSON.stringify(goal));localStorage.setItem("strInitialGoal",JSON.stringify(initialGoal));localStorage.setItem("strRemaining",JSON.stringify(remaining))}
+
+$("goalBtn").onclick=()=>{
+ if(goal!==null || initialGoal!==null)return;
+ goal=Math.floor(Math.random()*90000)+10000;
+ initialGoal=goal;
+ remaining=goal;
+ saveGoal();
+ renderGoal();
+ addLog(`Starting amount set: ${goal.toLocaleString("en-GB")} strokes.`);
+};
+function renderGoal(){
+ $("startGoal").textContent=goal?goal.toLocaleString("en-GB"):"—";
+ $("remaining").textContent=remaining!==null?remaining.toLocaleString("en-GB"):"—";
+ const done=goal?goal-remaining:0;
+ $("overallProgress").style.width=goal?Math.max(0,Math.min(100,done/goal*100))+"%":"0%";
+ $("goalInfo").textContent=goal?`${done.toLocaleString("en-GB")} strokes deducted • ${remaining.toLocaleString("en-GB")} remaining`:"Set the stroke target once between 10,000 and 99,999.";
+ $("goalBtn").disabled=goal!==null || initialGoal!==null;
+ $("goalBtn").textContent=(goal!==null || initialGoal!==null)?"Starting amount locked":"Set starting amount";
+ $("taskBtn").disabled=!goal || active;
+}
+function taskFor(cat){
+ if(cat==="Stroke"){
+   const sub=pick(["Handjob while watching porn","Fuck a fake pussy"]);
+   const strokes=pick(strokeAmounts), bpm=pick(strokeBpms);
+   return {cat,sub,detail:`${strokes} strokes • ${bpm} BPM`,strokes,bpm,duration:null};
+ }
+ if(cat==="Anal"){
+   const sub=pick(Object.keys(anal)),o=pick(anal[sub]);
+   return {cat,sub,detail:`Size/kind: ${o[0]} • Time: ${labelTime(o[1])}${o[2]?` • ${o[2]} BPM`:""}`,duration:o[1],bpm:o[2]||null,strokes:null};
+ }
+ if(cat==="Service"){
+   const sub=pick(["Waiter","Full body massage the mistress","Human furniture"]);
+   if(sub==="Waiter")return {cat,sub,detail:"Wear high heels, a bow, nipple clamps and ring gag, attach a tray to nipple clamps and ring gag and serve drinks or whatever else the mistress likes.",duration:3600};
+   if(sub==="Human furniture"){const o=pick(furniture);return {cat,sub,detail:`${o[0]} (${o[2]}) • ${labelTime(o[1])}`,duration:o[1]}}
+   return {cat,sub,detail:"Full body massage",duration:null};
+ }
+ if(cat==="Clean")return cleaningTask();
+ if(cat==="Torture"){
+   const branch=pick(["Cock/ball","Ass","Nipples"]);
+   if(branch==="Cock/ball") return cockBallTask();
+   if(branch==="Ass") return assTortureTask();
+   return nippleTortureTask();
+ }
+ if(cat==="Position"){
+   const sub=pick(["In the cage","Position","Bondage on bed"]);
+   if(sub==="In the cage"){const n=rnd(1,13),p=cageData[n-1];return {cat,sub,detail:`#${n} ${p.name} • set the desired time below`,duration:null,image:p.img,accessories:null,needsCageTime:true}}
+   if(sub==="Position"){const n=rnd(1,14),d=pick(posTimes),p=positionData[n-1];return {cat,sub,detail:`#${n} ${p.name} • ${labelTime(d)}`,duration:d,image:p.img,accessories:p.accessories}}
+   return {cat,sub,detail:`1 hour • ${pick(bed)}`,duration:3600};
+ }
+}
+function requirementsMet(){
+ const timeOK=!current?.duration || secondsLeft<=0;
+ const strokesOK=!current?.strokes || counted>=current.strokes;
+ const analOK=!(current?.cat==="Anal" && deferredAnal);
+ return !!current && timeOK && strokesOK && analOK;
+}
+function updateRun(){
+ $("timer").textContent=current?.duration?fmt(secondsLeft):"—";
+ $("strokeDone").textContent=current?.strokes?`${counted} / ${current.strokes}`:current?.bpm?counted:"—";
+ $("successBtn").disabled=!requirementsMet();
+}
+
+function showTask(){
+ $("failBtn").style.display=current.cat==="Stroke"?"none":"inline-block";
+ $("catOut").textContent=current.cat;$("statusOut").textContent="Open";
+ $("taskBox").style.display="block";
+ $("taskBox").innerHTML=`<h3>${current.cat} → ${current.sub}</h3><p>${current.detail}</p>`+
+ 
+ (current.image?`<div class="sourcePosition"><img src="${current.image}" alt="${current.sub}"><div class="accessories">${current.sub.startsWith("In the cage")||current.cat==="Position"&&current.accessories==null?"position and time from above picture":`<strong>Accessories:</strong> ${current.accessories}`}</div></div>`:"");
+ $("runCard").style.display="block";
+ $("bpmBox").style.display=current.bpm?"block":"none";
+ $("bpmTarget").textContent=current.bpm?current.bpm+" BPM":"—";
+ counted=0;pauseRemainders=[];secondsLeft=current.duration||0;
+ $("pauseNotice").style.display="none";$("penaltyBox").style.display="none";
+ active=true;failed=false;running=false;$("startBtn").textContent="Start";
+ $("cageTimeBox").style.display=current.needsCageTime?"block":"none";
+ $("pauseBtn").style.display=current.cat==="Stroke"?"inline-block":"none";
+ $("ruinedBtn").style.display=current.cat==="Stroke"?"inline-block":"none";
+ $("startBtn").disabled=!!current.needsCageTime || !!current.waitingForAnalConsequence;
+ if(current.waitingForAnalConsequence){
+   $("statusOut").textContent="Anal selected — complete the outstanding Anal consequence first";
+   $("taskBox").insertAdjacentHTML("beforeend",
+     `<div class="notice"><strong>This Anal task is locked.</strong><br>No other task can be selected. Complete the outstanding Anal consequence first; this exact task will then be unlocked.</div>`);
+ }
+ updateRun();renderGoal();
+}
+
+let audioCtx=null;
+function ensureAudio(){
+ try{
+   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+   if(audioCtx.state==="suspended") audioCtx.resume();
+ }catch(e){}
+}
+function tone(freq=880,duration=0.045,volume=0.035,type="sine",delay=0){
+ try{
+   ensureAudio();
+   if(!audioCtx)return;
+   const t=audioCtx.currentTime+delay;
+   const osc=audioCtx.createOscillator(), gain=audioCtx.createGain();
+   osc.type=type; osc.frequency.setValueAtTime(freq,t);
+   gain.gain.setValueAtTime(volume,t);
+   gain.gain.exponentialRampToValueAtTime(0.0001,t+duration);
+   osc.connect(gain); gain.connect(audioCtx.destination);
+   osc.start(t); osc.stop(t+duration);
+ }catch(e){}
+}
+function bpmTickSound(){ tone(920,0.035,0.025,"sine"); }
+let alarmInterval=null, alarmStopTimeout=null;
+function stopTimerAlarm(){
+ if(alarmInterval){clearInterval(alarmInterval);alarmInterval=null;}
+ if(alarmStopTimeout){clearTimeout(alarmStopTimeout);alarmStopTimeout=null;}
+}
+function alarmBurst(){
+ tone(880,0.18,0.07,"square",0);
+ tone(880,0.18,0.07,"square",0.28);
+ tone(660,0.24,0.075,"square",0.56);
+}
+function timerAlarm(){
+ stopTimerAlarm();
+ ensureAudio();
+ alarmBurst();
+ alarmInterval=setInterval(alarmBurst,1100);
+ alarmStopTimeout=setTimeout(stopTimerAlarm,30000);
+}
+
+function stopClocks(){
+ if(current?.duration && running && taskEndAt){
+   secondsLeft=Math.max(0,Math.ceil((taskEndAt-trustedNow())/1000));
+ }
+ taskEndAt=null;
+ running=false;clearInterval(timerTick);clearInterval(beatTick);timerTick=null;beatTick=null;
+ $("startBtn").textContent="Resume";
+}
+function startClocks(){
+ if(!active||running)return;
+ if(dailyBlocked()){renderDaily();$("statusOut").textContent="Complete the missed-day consequence before starting a task";return;}
+ if(current?.cat==="Anal" && deferredAnal){
+   current.waitingForAnalConsequence=true;
+   $("startBtn").disabled=true;
+   $("statusOut").textContent="Anal selected — complete the outstanding Anal consequence first";
+   renderOngoing();
+   return;
+ }
+ if(current?.waitingForAnalConsequence)return;
+ stopTimerAlarm();
+ ensureAudio();
+ running=true;$("startBtn").textContent="Running…";
+ if(current.duration && secondsLeft>0){
+   taskEndAt=trustedNow()+secondsLeft*1000;
+   timerTick=setInterval(()=>{
+     secondsLeft=Math.max(0,Math.ceil((taskEndAt-trustedNow())/1000));
+     updateRun();
+     if(secondsLeft<=0){clearInterval(timerTick);timerTick=null;taskEndAt=null;timerAlarm()}
+   },250);
+ }
+ if(current.bpm && (!current.strokes || counted<current.strokes)){
+   const ms=60000/current.bpm;
+   beatTick=setInterval(()=>{
+     if(current.strokes && counted>=current.strokes){clearInterval(beatTick);beatTick=null;updateRun();return}
+     counted++;bpmTickSound();updateRun();
+   },ms);
+ }
+ updateRun();
+}
+function addLog(text){
+ const logs=JSON.parse(localStorage.getItem("strLogs")||"[]");
+ const at=trustedNow();
+ logs.push({at:new Date(at).toISOString(),zone:DEVICE_TIME_ZONE,time:formatTrusted(at,DEVICE_TIME_ZONE),text});
+ localStorage.setItem("strLogs",JSON.stringify(logs));renderLogs();
+}
+function renderLogs(){
+ const logs=JSON.parse(localStorage.getItem("strLogs")||"[]"),el=$("logs");
+ const ordered=[...logs].sort((a,b)=>{
+   const aa=a.at?Date.parse(a.at):0, bb=b.at?Date.parse(b.at):0;
+   return aa&&bb?bb-aa:0;
+ });
+ el.innerHTML=ordered.length?ordered.map(x=>{
+   const label=x.at?`${formatTrusted(Date.parse(x.at),DEVICE_TIME_ZONE)} (${DEVICE_TIME_ZONE})`:x.time;
+   return `<div class="log"><strong>${label}</strong><br>${x.text}</div>`;
+ }).join(""):'<p class="muted">No results yet.</p>';
+}
+
+
+function saveOngoing(){
+ localStorage.setItem("strDeferredAnal",JSON.stringify(deferredAnal));
+ localStorage.setItem("strServiceUntil",JSON.stringify(serviceUntil));
+ renderOngoing();
+}
+function fmtDateTime(ms){return new Intl.DateTimeFormat("en-GB",{timeZone:DEVICE_TIME_ZONE,dateStyle:"medium",timeStyle:"short"}).format(new Date(ms));}
+function getAnalUnlockAt(){
+ if(!deferredAnal)return null;
+ if(deferredAnal.unlockAt)return Number(deferredAnal.unlockAt);
+ const created=Number(deferredAnal.created||trustedNow());
+ const zone=deferredAnal.timeZone||DEVICE_TIME_ZONE;
+ const unlock=nextLocalDayAt7(created,zone);
+ deferredAnal={...deferredAnal,created,timeZone:zone,unlockAt:unlock};
+ localStorage.setItem("strDeferredAnal",JSON.stringify(deferredAnal));
+ return unlock;
+}
+function renderOngoing(){
+ const items=[];
+ if(deferredAnal){
+   const unlockAt=getAnalUnlockAt();
+   const locked=trustedNow()<unlockAt;
+   const note=locked
+     ? `<p class="muted"><strong>Can be completed from:</strong> ${fmtDateTime(unlockAt)}</p>`
+     : `<p class="muted">The completion window is now open.</p>`;
+   items.push(`<div class="result"><strong>Anal consequence</strong><p>Sleep with a medium buttplug tonight</p>${note}<div class="actions"><button id="completeAnalConsequence" ${locked?"disabled":""}>Mark completed</button></div></div>`);
+ }
+ if(serviceUntil && serviceUntil>trustedNow()) items.push(`<div class="result"><strong>Service consequence</strong><p>${consequences.Service}</p><p><strong>Runs until:</strong> ${fmtDateTime(serviceUntil)}</p></div>`);
+ else if(serviceUntil && serviceUntil<=trustedNow()){serviceUntil=null;localStorage.removeItem("strServiceUntil");}
+ $("ongoingConsequences").style.display=items.length?"block":"none";
+ $("ongoingConsequencesList").innerHTML=items.join("");
+ if(deferredAnal && $("completeAnalConsequence")) $("completeAnalConsequence").onclick=()=>{
+   const unlockAt=getAnalUnlockAt();
+   if(trustedNow()<unlockAt){
+     renderOngoing();
+     return;
+   }
+   deferredAnal=null; saveOngoing(); addLog("Anal consequence marked as completed.");
+   if(active && current?.cat==="Anal" && current.waitingForAnalConsequence){
+     current.waitingForAnalConsequence=false;
+     $("startBtn").disabled=false;
+     $("statusOut").textContent="Anal consequence completed — selected Anal task is ready to start";
+     addLog(`The previously selected Anal task is now unlocked: ${current.sub}.`);
+   }
+   updateRun();
+ };
+}
+setInterval(()=>{if(deferredAnal)renderOngoing()},30000);
+function addServiceWeek(){
+ const base=(serviceUntil && serviceUntil>trustedNow())?serviceUntil:trustedNow();
+ serviceUntil=base+7*24*60*60*1000; saveOngoing();
+}
+
+
+function showCleaningSpanks(){
+ stopClocks(); failed=true; cleaningSpanks=0; cleaningResumeRequired=true;
+ $("runCard").style.display="none";
+ $("consequenceCard").style.display="block";
+ $("consequenceText").innerHTML="<p>First complete 100 hard spanks per buttock. The same cleaning task will then resume.</p>";
+ $("consequenceTimerBox").style.display="none";
+ $("strokePenaltyCounterBox").style.display="none";
+ $("ruinedCounterBox").style.display="none";
+ $("cleaningCounterBox").style.display="block";
+ $("cleaningCounter").textContent="0 / 200";
+ $("finishConsequence").disabled=true;
+ $("statusOut").textContent="Cleaning consequence open";
+}
+function updateCleaningCounter(){
+ $("cleaningCounter").textContent=`${cleaningSpanks} / 200`;
+ $("finishConsequence").disabled=cleaningSpanks<200;
+}
+function resumeCleaningAfterSpanks(){
+ $("consequenceCard").style.display="none"; $("cleaningCounterBox").style.display="none";
+ failed=false; cleaningResumeRequired=false; cleaningAftercareRequired=true;
+ $("runCard").style.display="block"; $("statusOut").textContent="Resume cleaning";
+ $("startBtn").textContent="Resume"; updateRun();
+}
+function showCleaningAftercare(){
+ failed=true;
+ $("runCard").style.display="none";
+ $("consequenceCard").style.display="block";
+ $("consequenceText").innerHTML="<p>Shave your pubic area, buttocks and buttock cleft, nipples and armpits, and clean your anus with an anal douche.</p>";
+ $("consequenceTimerBox").style.display="none"; $("strokePenaltyCounterBox").style.display="none";
+ $("ruinedCounterBox").style.display="none"; $("cleaningCounterBox").style.display="none";
+ $("finishConsequence").disabled=false; $("statusOut").textContent="Cleaning final consequence";
+}
+
+function makeConsequence(){
+ if(current.cat==="Stroke"){
+   // Original source rule for "had to stop during stroking":
+   // remaining strokes at first stop + 2x second + 3x third...; final number converted at 5 = 1.
+   const rems=pauseRemainders.length?pauseRemainders:[Math.max(0,(current.strokes||0)-counted)];
+   const weighted=rems.reduce((s,n,i)=>s+n*(i+1),0);
+   return {kind:"counter",target:weighted,
+     text:`Stroke consequence. Remaining per pause: ${rems.join(", ")}. After the increasing weighting, the workout total to distribute is ${weighted} points. Distribute this across sit-ups, push-ups, squats, lunges and jumping jacks. Sit-ups, push-ups, squats and lunges count as 1 point per repetition; jumping jacks count as 5 repetitions = 1 point.`};
+ }
+ if(current.cat==="Anal") return {kind:"manual",text:consequences.Anal};
+ if(current.cat==="Service") return {kind:"manual",text:consequences.Service};
+ if(current.cat==="Clean") return {kind:"manual",text:consequences.Clean};
+ if(current.cat==="Torture") return {kind:"timer",seconds:2*3600,text:consequences.Torture};
+ if(current.cat==="Position") return {kind:"timer",seconds:3600,text:consequences.Position};
+ return {kind:"manual",text:"Consequence."};
+}
+function saveBlockingConsequence(){
+ if(consequence && consequence.kind==="timer" && current && ["Torture","Position"].includes(current.cat)){
+   localStorage.setItem("strBlockingConsequence",JSON.stringify({
+     current, consequence, consequenceLeft, failed:true
+   }));
+ } else localStorage.removeItem("strBlockingConsequence");
+}
+function restoreBlockingConsequence(){
+ if(!persistedBlocking)return;
+ current=persistedBlocking.current; consequence=persistedBlocking.consequence;
+ consequenceLeft=Math.max(0,Number(persistedBlocking.consequenceLeft ?? consequence.seconds ?? 0));
+ active=true; failed=true; running=false;
+ $("catOut").textContent=current.cat;
+ $("taskBox").style.display="block";
+ $("taskBox").innerHTML=`<strong>${current.cat} → ${current.sub}</strong><p>${current.detail||""}</p>`;
+ $("runCard").style.display="none"; $("cageTimeBox").style.display="none";
+ $("consequenceCard").style.display="block"; $("consequenceText").innerHTML=`<p>${consequence.text}</p>`;
+ $("consequenceTimerBox").style.display="block"; $("consequenceTimer").textContent=fmt(consequenceLeft);
+ $("strokePenaltyCounterBox").style.display="none"; $("ruinedCounterBox").style.display="none"; $("cleaningCounterBox").style.display="none";
+ $("finishConsequence").disabled=consequenceLeft>0;
+ $("startConsequence").disabled=false;
+ $("statusOut").textContent="Consequence open — resume after reload";
+}
+function showConsequence(){
+ consequence=makeConsequence();failed=true;stopClocks();
+ $("runCard").style.display="none";$("cageTimeBox").style.display="none";
+ $("consequenceCard").style.display="block";$("consequenceText").innerHTML=`<p>${consequence.text}</p>`;
+ $("consequenceTimerBox").style.display=consequence.kind==="timer"?"block":"none";
+ $("startConsequence").disabled=false;
+ $("strokePenaltyCounterBox").style.display=consequence.kind==="counter"?"block":"none";
+ $("ruinedCounterBox").style.display=consequence.kind==="ruinedCounter"?"block":"none";
+ penaltyCount=0;ruinedCount=0;
+ workoutCounts={situps:0,pushups:0,squats:0,lunges:0,jumpingjacks:0};
+ if(consequence.kind==="counter"){
+   renderWorkoutCounters();
+   $("finishConsequence").disabled=consequence.target>0;
+ } else if(consequence.kind==="ruinedCounter"){
+   $("ruinedCounter").textContent=`0 / ${consequence.target}`;
+   $("finishConsequence").disabled=consequence.target>0;
+ } else if(consequence.kind==="timer"){
+   consequenceLeft=consequence.seconds;$("consequenceTimer").textContent=fmt(consequenceLeft);
+   $("finishConsequence").disabled=true;
+   saveBlockingConsequence();
+ } else $("finishConsequence").disabled=false;
+ $("statusOut").textContent="Consequence open";
+}
+function finishFailedRound(){
+ clearInterval(consequenceTick);consequenceTick=null;
+ addLog(`Consequence completed after failed task: ${current.cat} → ${current.sub}.`);
+ $("consequenceCard").style.display="none";consequence=null;failed=false;
+ localStorage.removeItem("strBlockingConsequence");persistedBlocking=null;closeTask();
+}
+function closeTask(){
+ stopClocks();active=false;current=null;$("statusOut").textContent="Ready";$("catOut").textContent="—";
+ $("taskBox").style.display="none";$("runCard").style.display="none";$("cageTimeBox").style.display="none";$("consequenceCard").style.display="none";renderGoal();
+}
+
+
+$("resetAllBtn").onclick=()=>{
+ if(!confirm("Are you sure you want to reset the entire roulette? The stroke target, logbook, ongoing consequences and current task will be cleared."))return;
+ stopClocks();
+ clearInterval(consequenceTick); consequenceTick=null;
+ ["strGoal","strInitialGoal","strRemaining","strLogs","strDeferredAnal","strServiceUntil","strBlockingConsequence"].forEach(k=>localStorage.removeItem(k));
+ goal=null; initialGoal=null; remaining=null; current=null; active=false; failed=false; running=false;
+ deferredAnal=null; serviceUntil=null; consequence=null; pauseRemainders=[];
+ cleaningSpanks=0; cleaningResumeRequired=false; cleaningAftercareRequired=false; ruinedCount=0;
+ // A full roulette reset also clears the complete Daily Requirement state,
+ // including missed-day streak, pending reset timer and penalized-day history.
+ clearInterval(dailyTick); dailyTick=null;
+ daily=defaultDaily();
+ localStorage.removeItem(DAILY_KEY);
+ saveDaily();
+ $("taskBox").style.display="none"; $("runCard").style.display="none"; $("cageTimeBox").style.display="none";
+ $("consequenceCard").style.display="none"; $("ongoingConsequences").style.display="none";
+ $("catOut").textContent="—"; $("statusOut").textContent="Ready";
+ renderGoal(); renderLogs(); renderOngoing(); renderDaily();
+ queueCloudSave();
+};
+
+$("taskBtn").onclick=()=>{
+ if(dailyBlocked()){renderDaily();alert("Complete the pending missed-day consequence first.");return}
+ if(!goal){alert("Set the stroke target first.");return}
+ if(active)return;
+ const chosen=pick(categories);
+ current=taskFor(chosen);
+ if(chosen==="Anal" && deferredAnal){
+   current.waitingForAnalConsequence=true;
+   addLog(`Anal was selected and locked: ${current.sub}. The outstanding Anal consequence must be completed first.`);
+ }
+ showTask();
+};
+$("setCageTime").onclick=()=>{
+ if(!current?.needsCageTime)return;
+ const m=Math.max(1,parseInt($("cageMinutes").value||"15",10));
+ current.duration=m*60;current.needsCageTime=false;secondsLeft=current.duration;
+ current.detail=current.detail.replace(/ • set the desired time below$/,"")+` • ${m} minutes`;
+ $("taskBox").querySelector("p").textContent=current.detail;
+ $("cageTimeBox").style.display="none";$("startBtn").disabled=false;updateRun();
+};
+$("startBtn").onclick=()=>{if(!failed)startClocks()};
+
+
+$("pauseBtn").onclick=()=>{
+ if(!active||failed||current?.cat!=="Stroke")return;
+ if(current?.strokes){
+   const left=Math.max(0,current.strokes-counted);
+   if(left>0)pauseRemainders.push(left);
+   $("pauseNotice").style.display="block";
+   $("pauseNotice").innerHTML=`Paused with <strong>${left} strokes remaining</strong>. This will be included in the adjusted consequence after completion.`;
+ }
+ stopClocks();$("statusOut").textContent="Paused";
+};
+$("successBtn").onclick=()=>{
+ if(!active||!requirementsMet())return;
+ stopTimerAlarm();
+ stopClocks();
+ if(current.cat==="Clean" && cleaningAftercareRequired){
+   addLog("Resumed cleaning task completed; final consequence required.");
+   showCleaningAftercare(); return;
+ }
+ let deducted=0;
+ if(current.cat==="Stroke"){deducted=Math.min(current.strokes||counted,remaining);remaining-=deducted;saveGoal()}
+ const pauseText=pauseRemainders.length?` • pause(s), remaining: ${pauseRemainders.join(", ")} • adjusted consequence required`:"";
+ addLog(`Success: ${current.cat} → ${current.sub} — ${current.detail}${deducted?` • ${deducted} strokes deducted`:""}${pauseText}`);
+ if(pauseRemainders.length){
+   addLog(`Stroke task completed after a pause; workout consequence is now required.`);
+   showConsequence();
+ } else markDailyTaskCompleted();
+ closeTask();
+};
+
+$("ruinedBtn").onclick=()=>{
+ if(!active || failed || current?.cat!=="Stroke")return;
+ stopClocks();
+ const taskLeft=Math.max(0,(current.strokes||0)-counted);
+ const overallLeft=Math.max(0,remaining);
+ const extra=rnd(10000,99999);
+ goal=initialGoal+extra;
+ remaining=goal;
+ saveGoal();renderGoal();
+ failed=true;
+ consequence={
+   kind:"ruinedCounter",
+   target:overallLeft,
+   text:`Ruined-result consequence from the source document: the total stroke counter has been reset to the original starting amount (${initialGoal.toLocaleString("en-GB")}) plus a new random five-digit number (${extra.toLocaleString("en-GB")}) = ${goal.toLocaleString("en-GB")}. The number of strokes that remained before the permitted finish (${overallLeft.toLocaleString("en-GB")}) must be completed as the source consequence before strokes can be earned again.`
+ };
+ addLog(`Ruined orgasm recorded. New stroke target: ${goal}. Consequence counter: ${overallLeft}.`);
+ $("runCard").style.display="none";$("cageTimeBox").style.display="none";
+ $("consequenceCard").style.display="block";
+ $("consequenceText").innerHTML=`<p>${consequence.text}</p>`;
+ $("consequenceTimerBox").style.display="none";
+ $("strokePenaltyCounterBox").style.display="none";
+ $("ruinedCounterBox").style.display="block";
+ ruinedCount=0;$("ruinedCounter").textContent=`0 / ${consequence.target}`;
+ $("finishConsequence").disabled=consequence.target>0;
+ $("statusOut").textContent="Ruined orgasm — consequence open";
+};
+
+$("failBtn").onclick=()=>{
+ if(!active||failed)return;
+ stopTimerAlarm();
+ stopClocks();
+ if(current.cat==="Anal"){
+   {
+   const created=trustedNow();
+   const zone=DEVICE_TIME_ZONE;
+   deferredAnal={created,timeZone:zone,unlockAt:nextLocalDayAt7(created,zone)};
+   saveOngoing();
+ }
+   addLog(`Anal task failed. Ongoing consequence added: ${consequences.Anal}`);
+   closeTask(); return;
+ }
+ if(current.cat==="Clean"){
+   addLog("Cleaning task failed. First complete 100 hard spanks per buttock; then resume the same task.");
+   showCleaningSpanks(); return;
+ }
+ if(current.cat==="Service"){
+   addServiceWeek();
+   addLog(`Service task failed. One week added; now runs until ${fmtDateTime(serviceUntil)}.`);
+   closeTask(); return;
+ }
+ addLog(`Task failed: ${current.cat} → ${current.sub}. Task closed; consequence required.`);
+ showConsequence();
+};
+$("stopBtn").onclick=()=>{
+ if(!active||failed)return;
+ stopClocks();
+ $("statusOut").textContent="Safety stop";
+ $("startBtn").disabled=false;
+ addLog(`Safety stop: ${current.cat} → ${current.sub}. No consequence recorded.`);
+ $("pauseNotice").style.display="block";
+ $("pauseNotice").innerHTML="<strong>Safety stop.</strong> No consequence is applied. The same task remains selected and can be resumed with Start/Resume when appropriate.";
+};
+
+$("startConsequence").onclick=()=>{
+ if(!consequence || consequence.kind!=="timer" || consequenceTick)return;
+ stopTimerAlarm();
+ ensureAudio();
+ $("startConsequence").disabled=true;
+ consequenceEndAt=trustedNow()+consequenceLeft*1000;
+ consequenceTick=setInterval(()=>{
+   consequenceLeft=Math.max(0,Math.ceil((consequenceEndAt-trustedNow())/1000));
+   $("consequenceTimer").textContent=fmt(consequenceLeft);
+   saveBlockingConsequence();
+   if(consequenceLeft<=0){
+     clearInterval(consequenceTick);consequenceTick=null;consequenceEndAt=null;
+     $("finishConsequence").disabled=false;
+     timerAlarm();
+   }
+ },250);
+};
+function workoutPoints(){
+ return workoutCounts.situps+workoutCounts.pushups+workoutCounts.squats+workoutCounts.lunges+Math.floor(workoutCounts.jumpingjacks/5);
+}
+function changeWorkout(key,delta){
+ if(!consequence || consequence.kind!=="counter")return;
+ workoutCounts[key]=Math.max(0,workoutCounts[key]+delta);
+ renderWorkoutCounters();
+}
+function renderWorkoutCounters(){
+ const labels={situps:"Sit-ups",pushups:"Push-ups",squats:"Squats",lunges:"Lunges",jumpingjacks:"Jumping jacks"};
+ const pts=workoutPoints();
+ $("penaltyCounter").textContent=`${Math.min(pts,consequence.target)} / ${consequence.target} points`;
+ $("workoutCounters").innerHTML=Object.keys(labels).map(k=>{
+   const factor=k==="jumpingjacks"?" (5 = 1 point)":" (1 = 1 point)";
+   return `<div class="result" style="margin-top:8px"><strong>${labels[k]}</strong>${factor}<div class="big">${workoutCounts[k]}</div><div class="actions"><button onclick="changeWorkout('${k}',-1)">−1</button><button onclick="changeWorkout('${k}',1)">+1</button><button onclick="changeWorkout('${k}',10)">+10</button></div></div>`;
+ }).join("");
+ $("finishConsequence").disabled=pts<consequence.target;
+}
+
+function updateRuinedCounter(){
+ if(consequence?.kind!=="ruinedCounter")return;
+ $("ruinedCounter").textContent=`${ruinedCount} / ${consequence.target}`;
+ $("finishConsequence").disabled=ruinedCount<consequence.target;
+}
+$("ruinedMinus").onclick=()=>{ruinedCount=Math.max(0,ruinedCount-1);updateRuinedCounter()};
+$("ruinedPlus").onclick=()=>{if(consequence?.kind==="ruinedCounter")ruinedCount=Math.min(consequence.target,ruinedCount+1);updateRuinedCounter()};
+$("ruinedPlus10").onclick=()=>{if(consequence?.kind==="ruinedCounter")ruinedCount=Math.min(consequence.target,ruinedCount+10);updateRuinedCounter()};
+$("ruinedPlus100").onclick=()=>{if(consequence?.kind==="ruinedCounter")ruinedCount=Math.min(consequence.target,ruinedCount+100);updateRuinedCounter()};
+
+$("cleanMinus").onclick=()=>{if(cleaningResumeRequired){cleaningSpanks=Math.max(0,cleaningSpanks-1);updateCleaningCounter()}};
+$("cleanPlus").onclick=()=>{if(cleaningResumeRequired){cleaningSpanks=Math.min(200,cleaningSpanks+1);updateCleaningCounter()}};
+$("cleanPlus10").onclick=()=>{if(cleaningResumeRequired){cleaningSpanks=Math.min(200,cleaningSpanks+10);updateCleaningCounter()}};
+$("cleanPlus100").onclick=()=>{if(cleaningResumeRequired){cleaningSpanks=Math.min(200,cleaningSpanks+100);updateCleaningCounter()}};
+$("finishConsequence").onclick=()=>{
+ if($("finishConsequence").disabled)return;
+ stopTimerAlarm();
+ if(cleaningResumeRequired){addLog("200 cleaning spanks completed; cleaning task resumed.");resumeCleaningAfterSpanks();return}
+ if(current?.cat==="Clean" && cleaningAftercareRequired){
+   cleaningAftercareRequired=false; addLog("Cleaning final consequence completed."); finishFailedRound(); return;
+ }
+ finishFailedRound();
+};
+
+$("clearLog").onclick=()=>{if(confirm("Clear logbook?")){localStorage.removeItem("strLogs");renderLogs()}};
+
+$("tree").innerHTML=`
+<b>1. Stroke</b> — 2 subcategories; random strokes + live BPM counter.<br>
+<b>2. Anal</b> — Buttplug, Dildo sitting, Fuck; size/kind + countdown timer, with BPM for Fuck.<br>
+<b>3. Service</b> — Waiter (1 hour), full body massage, Human furniture (type + countdown timer).<br>
+<b>4. Clean</b> — 5 cleaning tasks × 7 rooms.<br>
+<b>5. Torture</b> — Cock/ball, Ass and Nipples use their source subcategories with independent X/Y randomization.<br>
+<b>6. Position</b> — In the cage (1–13), Position (1–14 + accessories + random time), Bondage on bed (1 hour + 1 of 6 positions).
+`;
+renderGoal();renderLogs();renderOngoing();restoreBlockingConsequence();
+
+// ---------- Daily requirement ----------
+const DAILY_KEY="dailyRequirement_v2";
+let dailyTick=null;
+function localDayKey(ms=trustedNow(),zone=DEVICE_TIME_ZONE){
+ const p=zonedParts(ms,zone);
+ return `${p.year}-${String(p.month).padStart(2,"0")}-${String(p.day).padStart(2,"0")}`;
+}
+function dayNumber(key){const [y,m,d]=key.split("-").map(Number);return Math.floor(Date.UTC(y,m-1,d)/86400000)}
+function defaultDaily(){return {trackingStartedDay:null,lastOpenDay:null,lastCompletedDay:null,missStreak:0,streakAddedStrokes:0,pendingLevel:0,pendingMinutes:0,pendingEndAt:null,ballCount:0,penalizedDays:[]}}
+function loadDaily(){try{return {...defaultDaily(),...(JSON.parse(localStorage.getItem(DAILY_KEY))||{})}}catch(e){return defaultDaily()}}
+let daily=loadDaily();
+function saveDaily(){localStorage.setItem(DAILY_KEY,JSON.stringify(daily))}
+function activateDailyTracking(){
+ if(daily.trackingStartedDay)return;
+ daily.trackingStartedDay=localDayKey();
+ daily.lastOpenDay=daily.trackingStartedDay;
+ saveDaily();renderDaily();
+ addLog("Daily requirement tracking activated.");
+}
+
+function addStrokePenalty(n){
+ if(goal==null){goal=10000;initialGoal=goal;remaining=goal}
+ goal+=n;remaining+=n;saveGoal();renderGoal();
+ addLog(`Daily requirement penalty: +${n.toLocaleString("en-GB")} strokes.`);
+}
+function registerMissedDay(dayKey){
+ if(daily.penalizedDays.includes(dayKey))return;
+ daily.missStreak=(daily.missStreak||0)+1;
+ const level=daily.missStreak;
+ const add=250*level;
+ daily.streakAddedStrokes=(daily.streakAddedStrokes||0)+add;
+ addStrokePenalty(add);
+ // One current consequence, not cumulative time: day 1 = 30m, day 2 = 60m, day 3 = 90m...
+ daily.pendingLevel=level;
+ daily.pendingMinutes=30*level;
+ daily.ballCount=0;
+ daily.pendingEndAt=null;
+ daily.penalizedDays.push(dayKey);
+ addLog(`Daily task requirement missed (${level} consecutive missed day${level===1?"":"s"}): +${add} strokes. Current reset timer: ${30*level} minutes.`);
+ saveDaily();
+}
+function evaluateDaily(){
+ const today=localDayKey();
+ if(!daily.trackingStartedDay){
+   if(goal!==null && initialGoal!==null) activateDailyTracking();
+   else {renderDaily();return;}
+ }
+ const todayN=dayNumber(today), startN=dayNumber(daily.lastOpenDay||daily.trackingStartedDay||today);
+ for(let n=startN;n<todayN;n++){
+   const d=new Date(n*86400000);
+   const key=`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,"0")}-${String(d.getUTCDate()).padStart(2,"0")}`;
+   if(daily.lastCompletedDay!==key)registerMissedDay(key);
+ }
+ daily.lastOpenDay=today;saveDaily();renderDaily();
+}
+function markDailyTaskCompleted(){
+ daily.lastCompletedDay=localDayKey();
+ // A completed task resets the missed-day escalation for the next future miss.
+ daily.missStreak=0;
+ daily.streakAddedStrokes=0;
+ daily.ballCount=0;
+ daily.pendingLevel=0;
+ daily.pendingMinutes=0;
+ daily.pendingEndAt=null;
+ clearInterval(dailyTick);dailyTick=null;
+ saveDaily();renderDaily();
+ addLog("Daily task requirement completed. Missed-day escalation reset.");
+}
+function dailySecondsLeft(){
+ if(daily.pendingEndAt)return Math.max(0,Math.ceil((daily.pendingEndAt-trustedNow())/1000));
+ return Math.max(0,Math.round((daily.pendingMinutes||0)*60));
+}
+function dailyBlocked(){return dailySecondsLeft()>0}
+function renderDaily(){
+ if(!daily.trackingStartedDay && goal!==null && initialGoal!==null){
+   daily.trackingStartedDay=localDayKey();
+   daily.lastOpenDay=daily.trackingStartedDay;
+   saveDaily();
+ }
+ const activeTracking=!!daily.trackingStartedDay;
+ const done=daily.lastCompletedDay===localDayKey(), pending=dailySecondsLeft(), level=daily.pendingLevel||0;
+ $("dailyRequirementStatus").innerHTML=!activeTracking
+   ? `<strong>Daily tracking:</strong> not active yet — generate a starting amount to begin.`
+   : `<strong>Today:</strong> ${done?"task requirement completed":"NO TASK COMPLETED YET"}<br><strong>Consecutive missed days:</strong> ${daily.missStreak||0}<br><strong>Current reset timer:</strong> ${Math.ceil(pending/60)} minutes`;
+ $("dailyRequirementConsequence").style.display=pending>0?"block":"none";
+ if(pending>0){
+   $("dailyRequirementText").textContent=`Missed-day consequence level ${level}. Added a total of ${(daily.streakAddedStrokes||0).toLocaleString("en-GB")} strokes to the counter. Complete consequence task before another task can be started.`;
+   $("dailyStep1Amount").textContent=`Amount: ${50*level}`;
+   $("dailyStep2").style.opacity="1";
+   $("dailyRequirementStart").disabled=!!daily.pendingEndAt;
+   $("dailyRequirementTimer").textContent=fmt(pending);
+ }
+}
+function startDailyReset(){
+ if(!dailyBlocked())return;
+ if(!daily.pendingEndAt)daily.pendingEndAt=trustedNow()+dailySecondsLeft()*1000;
+ saveDaily();clearInterval(dailyTick);
+ dailyTick=setInterval(()=>{
+   const left=dailySecondsLeft();
+   $("dailyRequirementTimer").textContent=fmt(left);
+   if(left<=0){
+     clearInterval(dailyTick);dailyTick=null;
+     daily.pendingMinutes=0;daily.pendingEndAt=null;saveDaily();renderDaily();
+     addLog("Missed-day reset timer completed.");
+   }
+ },250);
+ renderDaily();
+}
+
+
+$("dailyRequirementStart").onclick=startDailyReset;
+// Daily state is initialized only after `daily` exists.
+
+
+// ---------- Supabase private cloud sync ----------
+const SUPABASE_URL="https://pebuxfpwgxuheezfhctj.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_hAh2zxczY49fTS32bHPIZw_2I0gC5fc";
+const cloud=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{
+ auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}
+});
+let cloudUser=null, cloudReady=false, cloudApplying=false, lastCloudJSON="", saveCloudTimer=null;
+
+function setSyncStatus(text){
+ const el=$("syncStatus"); if(el) el.textContent=text;
+}
+function localLogs(){return JSON.parse(localStorage.getItem("strLogs")||"[]")}
+function snapshotState(){
+ return {
+   version:30, savedAt:new Date(trustedNow()).toISOString(),
+   goal,initialGoal,remaining,current,active,running,secondsLeft,counted,pauseRemainders,
+   failed,consequence,consequenceLeft,penaltyCount,workoutCounts,ruinedCount,
+   cleaningSpanks,cleaningResumeRequired,cleaningAftercareRequired,
+   deferredAnal,serviceUntil,
+   taskEndAt: running&&taskEndAt ? taskEndAt : null,
+   consequenceEndAt: consequenceTick&&consequenceEndAt ? consequenceEndAt : null,
+   logs:localLogs(), dailyRequirement:loadDaily()
+ };
+}
+function cacheSnapshot(s){
+ if(s.goal==null)localStorage.removeItem("strGoal");else localStorage.setItem("strGoal",JSON.stringify(s.goal));
+ if(s.initialGoal==null)localStorage.removeItem("strInitialGoal");else localStorage.setItem("strInitialGoal",JSON.stringify(s.initialGoal));
+ if(s.remaining==null)localStorage.removeItem("strRemaining");else localStorage.setItem("strRemaining",JSON.stringify(s.remaining));
+ localStorage.setItem("strLogs",JSON.stringify(s.logs||[]));
+ if(s.deferredAnal==null)localStorage.removeItem("strDeferredAnal");else localStorage.setItem("strDeferredAnal",JSON.stringify(s.deferredAnal));
+ if(s.serviceUntil==null)localStorage.removeItem("strServiceUntil");else localStorage.setItem("strServiceUntil",JSON.stringify(s.serviceUntil));
+}
+function applyCloudState(s){
+ if(!s)return;
+ cloudApplying=true;
+ stopTimerAlarm(); clearInterval(timerTick);clearInterval(beatTick);clearInterval(consequenceTick);
+ timerTick=beatTick=consequenceTick=null;
+ goal=s.goal??null; initialGoal=s.initialGoal??null; remaining=s.remaining??null;
+ current=s.current??null; active=!!s.active; running=false;
+ secondsLeft=Number(s.secondsLeft||0); counted=Number(s.counted||0); pauseRemainders=s.pauseRemainders||[];
+ failed=!!s.failed; consequence=s.consequence??null; consequenceLeft=Number(s.consequenceLeft||0);
+ penaltyCount=Number(s.penaltyCount||0); workoutCounts=s.workoutCounts||{situps:0,pushups:0,squats:0,lunges:0,jumpingjacks:0};
+ ruinedCount=Number(s.ruinedCount||0); cleaningSpanks=Number(s.cleaningSpanks||0);
+ cleaningResumeRequired=!!s.cleaningResumeRequired; cleaningAftercareRequired=!!s.cleaningAftercareRequired;
+ deferredAnal=s.deferredAnal??null; serviceUntil=s.serviceUntil??null;
+ taskEndAt=s.taskEndAt||null; consequenceEndAt=s.consequenceEndAt||null;
+ if(s.dailyRequirement){daily={...defaultDaily(),...s.dailyRequirement};saveDaily();}
+ cacheSnapshot(s);
+ renderGoal();renderLogs();renderOngoing();renderDaily();
+ $("taskBox").style.display="none";$("runCard").style.display="none";$("cageTimeBox").style.display="none";$("consequenceCard").style.display="none";
+ if(active && current && failed && consequence){
+   $("catOut").textContent=current.cat;$("statusOut").textContent="Consequence open";
+   $("taskBox").style.display="block";$("taskBox").innerHTML=`<strong>${current.cat} → ${current.sub}</strong><p>${current.detail||""}</p>`;
+   $("consequenceCard").style.display="block";$("consequenceText").innerHTML=`<p>${consequence.text||""}</p>`;
+   if(consequence.kind==="timer"){
+     if(consequenceEndAt) consequenceLeft=Math.max(0,Math.ceil((consequenceEndAt-trustedNow())/1000));
+     $("consequenceTimerBox").style.display="block";$("consequenceTimer").textContent=fmt(consequenceLeft);
+     $("finishConsequence").disabled=consequenceLeft>0;
+     $("startConsequence").disabled=consequenceLeft<=0;
+     if(consequenceEndAt && consequenceLeft>0){
+       $("startConsequence").disabled=true;
+       consequenceTick=setInterval(()=>{
+         consequenceLeft=Math.max(0,Math.ceil((consequenceEndAt-trustedNow())/1000));
+         $("consequenceTimer").textContent=fmt(consequenceLeft);
+         if(consequenceLeft<=0){clearInterval(consequenceTick);consequenceTick=null;consequenceEndAt=null;$("finishConsequence").disabled=false;timerAlarm()}
+       },250);
+     }
+   }
+ } else if(active && current){
+   const keep={secondsLeft,counted,pauseRemainders:[...pauseRemainders]};
+   showTask(); secondsLeft=keep.secondsLeft; counted=keep.counted; pauseRemainders=keep.pauseRemainders; updateRun();
+   if(s.taskEndAt){
+     secondsLeft=Math.max(0,Math.ceil((s.taskEndAt-trustedNow())/1000));
+     updateRun();
+     if(secondsLeft>0){ taskEndAt=null; startClocks(); }
+   }
+ } else {
+   current=null;active=false;failed=false;$("catOut").textContent="—";$("statusOut").textContent="Ready";
+ }
+ cloudApplying=false;
+}
+async function cloudSave(force=false){
+ if(!cloudUser||cloudApplying)return;
+ const state=snapshotState(), json=JSON.stringify(state);
+ if(!force && json===lastCloudJSON)return;
+ setSyncStatus("Saving…");
+ const {error}=await cloud.from("app_state").upsert({user_id:cloudUser.id,state,updated_at:new Date(trustedNow()).toISOString()},{onConflict:"user_id"});
+ if(error){console.error(error);setSyncStatus("Sync error");return}
+ lastCloudJSON=json; setSyncStatus("Synced");
+}
+function queueCloudSave(){ if(!cloudUser||cloudApplying)return; clearTimeout(saveCloudTimer);saveCloudTimer=setTimeout(()=>cloudSave(false),350); }
+async function cloudLoad(){
+ if(!cloudUser)return;
+ setSyncStatus("Synchronizing server time…");
+ await syncTrustedClock();
+ setSyncStatus("Loading…");
+ const {data,error}=await cloud.from("app_state").select("state,updated_at").eq("user_id",cloudUser.id).maybeSingle();
+ if(error){console.error(error);setSyncStatus("Sync error");return}
+ if(data?.state){
+   applyCloudState(data.state);
+   // Important: evaluate missed calendar days only AFTER the authoritative cloud
+   // state has been restored. Otherwise a fresh page load can overwrite lastOpenDay
+   // with today before missed days are checked.
+   evaluateDaily();
+   cloudReady=true;
+   await cloudSave(true);
+   lastCloudJSON=JSON.stringify(snapshotState());
+   setSyncStatus("Synced");
+ }else{
+   cloudReady=true;
+   evaluateDaily();
+   await cloudSave(true);
+ }
+}
+async function updateAuthUI(session){
+ cloudUser=session?.user||null;
+ $("loggedOutBox").style.display=cloudUser?"none":"block";
+ $("loggedInBox").style.display=cloudUser?"block":"none";
+ $("accountLabel").textContent=cloudUser?cloudUser.email:"";
+ $("privateApp").classList.remove("app-visible"); $("privateApp").style.display="none";
+ $("resetAllBtn").style.display="none";
+ if(cloudUser){
+   setSyncStatus("Loading…");
+   try{
+     await cloudLoad();
+     $("privateApp").style.display="grid"; $("privateApp").classList.add("app-visible");
+     $("resetAllBtn").style.display="inline-block";
+     renderDaily();
+   }catch(err){
+     console.error(err);
+     setSyncStatus("Could not load cloud state");
+     $("loginMessage").textContent="Signed in, but the cloud state could not be loaded.";
+   }
+ }else{
+   cloudReady=false;
+   setSyncStatus("Signed out");
+ }
+}
+$("loginBtn").onclick=async()=>{
+ $("loginMessage").textContent="Signing in…";
+ try{
+   const email=$("loginEmail").value.trim(),password=$("loginPassword").value;
+   const {data,error}=await cloud.auth.signInWithPassword({email,password});
+   $("loginPassword").value="";
+   if(error){$("loginMessage").textContent=error.message;return}
+   $("loginMessage").textContent="";
+   await updateAuthUI(data.session);
+ }catch(err){
+   console.error(err);
+   $("loginPassword").value="";
+   $("loginMessage").textContent=err?.message||"Sign in failed.";
+ }
+};
+$("logoutBtn").onclick=async()=>{await cloudSave(true);await cloud.auth.signOut();cloudUser=null;cloudReady=false;updateAuthUI(null)};
+$("syncNowBtn").onclick=()=>cloudSave(true);
+cloud.auth.getSession().then(({data})=>updateAuthUI(data.session));
+cloud.auth.onAuthStateChange((event,session)=>{
+ if(event==="SIGNED_OUT") updateAuthUI(null);
+ else if(event==="SIGNED_IN" && session && !cloudUser) updateAuthUI(session);
+});
+
+// Save changed state frequently without writing every timer tick.
+setInterval(()=>{ if(cloudUser) queueCloudSave(); },1500);
+window.addEventListener("online",()=>{setSyncStatus("Saving…");cloudSave(true)});
+window.addEventListener("offline",()=>setSyncStatus("Offline"));
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="hidden")cloudSave(true)});
+window.addEventListener("beforeunload",()=>{queueCloudSave()});
+
+
+setInterval(()=>{if(cloudUser)syncTrustedClock().catch(err=>console.warn("Server clock resync failed",err));},5*60*1000);
+</script></body></html>
